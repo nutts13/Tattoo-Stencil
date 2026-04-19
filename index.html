@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Stencil Studio Pro</title>
+<title>Stencil Studio</title>
 
 <style>
 body {
@@ -18,7 +18,6 @@ header {
   border-bottom:1px solid #222;
   display:flex;
   justify-content:space-between;
-  align-items:center;
 }
 
 input {
@@ -37,28 +36,19 @@ main {
 }
 
 .drop {
+  background:#111;
   border:2px dashed #333;
   padding:50px;
   text-align:center;
   border-radius:20px;
   cursor:pointer;
-  background:#111;
 }
 
-#output {
+canvas {
+  width:100%;
   margin-top:20px;
   background:#fff;
   border-radius:20px;
-  min-height:500px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-  overflow:hidden;
-}
-
-#output img {
-  width:100%;
-  filter: contrast(1.6) brightness(1.1);
 }
 
 .controls {
@@ -76,11 +66,11 @@ button {
 }
 
 .print { background:#fff; color:#000; }
+.save { background:#2ecc71; color:#000; }
+.copy { background:#3498db; color:#fff; }
 .reset { background:#333; color:#fff; }
 
-.slider {
-  width:100%;
-}
+.slider { width:100%; }
 
 .loading {
   display:none;
@@ -91,27 +81,14 @@ button {
   align-items:center;
   flex-direction:column;
 }
-
-.spinner {
-  width:30px;
-  height:30px;
-  border:3px solid #333;
-  border-top:3px solid #fff;
-  border-radius:50%;
-  animation:spin 0.8s linear infinite;
-}
-
-@keyframes spin {
-  to { transform:rotate(360deg); }
-}
 </style>
 </head>
 
 <body>
 
 <header>
-  <div><b>STENCIL STUDIO PRO</b></div>
-  <input type="password" id="apiKey" placeholder="API Key">
+  <div><b>STENCIL STUDIO</b></div>
+  <input type="password" id="apiKey" placeholder="Gemini API Key">
 </header>
 
 <main>
@@ -123,168 +100,116 @@ button {
 
 <div class="controls">
   <label>Line Strength</label>
-  <input type="range" min="0.8" max="2.5" step="0.1" value="1.6" id="strength" class="slider">
+  <input type="range" id="strength" min="1" max="3" step="0.1" value="1.8">
 </div>
 
-<div id="output"></div>
+<canvas id="canvas"></canvas>
 
-<button class="print" onclick="window.print()">PRINT STENCIL</button>
-<button class="print" onclick="saveImage()">SAVE IMAGE</button>
-<button class="print" onclick="copyImage()">COPY IMAGE</button>
+<button class="print" onclick="window.print()">PRINT</button>
+<button class="save" onclick="saveImage()">SAVE IMAGE</button>
+<button class="copy" onclick="copyImage()">COPY IMAGE</button>
 <button class="reset" onclick="location.reload()">NEW IMAGE</button>
 
 </main>
 
-<div class="loading" id="loader">
-  <div class="spinner"></div>
-  <p>Creating stencil...</p>
-</div>
-
 <script>
 const fileInput = document.getElementById("fileInput");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+const strength = document.getElementById("strength");
 const apiKey = document.getElementById("apiKey");
-const output = document.getElementById("output");
-const loader = document.getElementById("loader");
-const strengthSlider = document.getElementById("strength");
-
-if (localStorage.api) apiKey.value = localStorage.api;
-apiKey.oninput = () => localStorage.api = apiKey.value;
 
 fileInput.onchange = e => {
   const file = e.target.files[0];
-  if (!file || !apiKey.value) return alert("Add API key + image");
+  if (!file) return;
 
-  preprocess(file, (img64) => {
-    generate(img64);
-  });
+  const reader = new FileReader();
+  reader.onload = ev => loadImage(ev.target.result);
+  reader.readAsDataURL(file);
 };
 
-function preprocess(file, cb) {
+function loadImage(src) {
   const img = new Image();
-  const reader = new FileReader();
+  img.src = src;
 
-  reader.onload = e => img.src = e.target.result;
-
-  img.onload = () => {
-    const canvas = document.createElement("canvas");
-    const ctx = canvas.getContext("2d");
-
+  img.onload = async () => {
     canvas.width = img.width;
     canvas.height = img.height;
 
-    ctx.drawImage(img, 0, 0);
+    ctx.drawImage(img,0,0);
 
-    let data = ctx.getImageData(0, 0, canvas.width, canvas.height);
-    let p = data.data;
+    // OPTIONAL: Gemini used only for "thinking", NOT image generation
+    await getStencilGuide(src);
 
-    for (let i = 0; i < p.length; i += 4) {
-      let avg = (p[i] + p[i+1] + p[i+2]) / 3;
-
-      // stencil threshold
-      avg = avg > 130 ? 255 : 0;
-
-      p[i] = p[i+1] = p[i+2] = avg;
-    }
-
-    ctx.putImageData(data, 0, 0);
-
-    cb(canvas.toDataURL("image/jpeg", 1.0));
+    applyStencil();
   };
-
-  reader.readAsDataURL(file);
 }
 
-async function generate(b64) {
-  loader.style.display = "flex";
+async function getStencilGuide(img) {
+  if (!apiKey.value) return;
 
   try {
-    const res = await fetch(
+    await fetch(
       `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro:generateContent?key=${apiKey.value}`,
       {
         method:"POST",
         headers:{ "Content-Type":"application/json" },
         body: JSON.stringify({
           contents:[{
-            parts:[
-              { inlineData:{ mimeType:"image/jpeg", data:b64 } },
-              { text: `
-Turn this into a tattoo stencil.
-
-RULES:
-- black ink only
-- bold clean outlines
-- no shading
-- high contrast
-- tattoo flash style
-
-Return only a generated image.
-` }
-            ]
+            parts:[{
+              inlineData:{
+                mimeType:"image/jpeg",
+                data: img.split(",")[1]
+              }
+            },{
+              text:"Describe this as a tattoo stencil. Focus on outlines only."
+            }]
           }]
         })
       }
     );
+  } catch {}
+}
 
-    const data = await res.json();
-    const part = data?.candidates?.[0]?.content?.parts?.[0];
+function applyStencil() {
+  let imgData = ctx.getImageData(0,0,canvas.width,canvas.height);
+  let data = imgData.data;
 
-    if (!part?.inlineData) throw new Error("No image returned");
+  const threshold = strength.value * 120;
 
-    const img = document.createElement("img");
-    img.src = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-
-    const strength = strengthSlider.value;
-    img.style.filter = `contrast(${strength}) brightness(1.1)`;
-
-    output.innerHTML = "";
-    output.appendChild(img);
-
-  } catch (e) {
-    alert("Error: " + e.message);
+  for (let i=0;i<data.length;i+=4) {
+    let avg = (data[i]+data[i+1]+data[i+2])/3;
+    avg = avg > threshold ? 255 : 0;
+    data[i]=data[i+1]=data[i+2]=avg;
   }
 
-  loader.style.display = "none";
+  ctx.putImageData(imgData,0,0);
 }
 
-/* -----------------------
-   SAVE + COPY FUNCTIONS
------------------------- */
+/* -------------------
+   SAVE + COPY FIXED
+-------------------- */
 
-function getImage() {
-  return document.querySelector("#output img");
-}
-
-// SAVE
 function saveImage() {
-  const img = getImage();
-  if (!img) return alert("No image yet");
-
   const a = document.createElement("a");
-  a.href = img.src;
   a.download = "stencil.png";
+  a.href = canvas.toDataURL("image/png");
   a.click();
 }
 
-// COPY
 async function copyImage() {
-  const img = getImage();
-  if (!img) return;
-
   try {
-    const res = await fetch(img.src);
-    const blob = await res.blob();
-
+    const blob = await new Promise(r => canvas.toBlob(r));
     await navigator.clipboard.write([
-      new ClipboardItem({ [blob.type]: blob })
+      new ClipboardItem({ "image/png": blob })
     ]);
-
-    alert("Copied to clipboard");
-  } catch (e) {
+    alert("Copied");
+  } catch {
     const a = document.createElement("a");
-    a.href = img.src;
     a.download = "stencil.png";
+    a.href = canvas.toDataURL("image/png");
     a.click();
-    alert("Clipboard not supported — downloaded instead");
+    alert("Downloaded instead");
   }
 }
 </script>
