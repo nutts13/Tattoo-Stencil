@@ -3,31 +3,106 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Stencil Pro Elite</title>
+<title>Stencil Studio Pro</title>
 
 <style>
-body { margin:0; background:#000; color:#fff; font-family:-apple-system; }
-header { padding:1rem; display:flex; justify-content:space-between; border-bottom:1px solid #333; }
-input { background:#222; border:1px solid #444; color:#fff; padding:8px; border-radius:10px; }
+body {
+  margin:0;
+  background:#000;
+  color:#fff;
+  font-family:-apple-system, sans-serif;
+}
 
-main { max-width:600px; margin:auto; padding:20px; }
+header {
+  padding:20px;
+  border-bottom:1px solid #222;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
 
-.drop { border:2px dashed #444; padding:60px; text-align:center; cursor:pointer; }
+input {
+  background:#111;
+  color:#fff;
+  border:1px solid #333;
+  padding:8px;
+  border-radius:10px;
+  width:200px;
+}
 
-canvas { width:100%; background:#fff; margin-top:20px; border-radius:10px; }
+main {
+  max-width:650px;
+  margin:auto;
+  padding:20px;
+}
 
-.controls { margin-top:15px; }
-.controls label { font-size:12px; color:#aaa; }
-.controls input { width:100%; }
+.drop {
+  border:2px dashed #333;
+  padding:50px;
+  text-align:center;
+  border-radius:20px;
+  cursor:pointer;
+  background:#111;
+}
 
-button { width:100%; margin-top:10px; padding:15px; border:none; border-radius:10px; font-weight:bold; }
+#output {
+  margin-top:20px;
+  background:#fff;
+  border-radius:20px;
+  min-height:500px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+}
+
+#output img {
+  width:100%;
+  filter: contrast(1.6) brightness(1.1);
+}
+
+.controls {
+  margin-top:15px;
+}
+
+button {
+  width:100%;
+  padding:15px;
+  margin-top:10px;
+  border:none;
+  border-radius:10px;
+  font-weight:bold;
+  cursor:pointer;
+}
 
 .print { background:#fff; color:#000; }
 .reset { background:#333; color:#fff; }
 
-@media print {
-  body * { display:none; }
-  canvas { display:block; width:100%; }
+.slider {
+  width:100%;
+}
+
+.loading {
+  display:none;
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,0.9);
+  justify-content:center;
+  align-items:center;
+  flex-direction:column;
+}
+
+.spinner {
+  width:30px;
+  height:30px;
+  border:3px solid #333;
+  border-top:3px solid #fff;
+  border-radius:50%;
+  animation:spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform:rotate(360deg); }
 }
 </style>
 </head>
@@ -35,122 +110,182 @@ button { width:100%; margin-top:10px; padding:15px; border:none; border-radius:1
 <body>
 
 <header>
-  <div>STENCIL ELITE</div>
-  <input id="apiKey" placeholder="API Key">
+  <div><b>STENCIL STUDIO PRO</b></div>
+  <input type="password" id="apiKey" placeholder="API Key">
 </header>
 
 <main>
 
-<div class="drop" onclick="fileIn.click()">
-  <input type="file" id="fileIn" hidden accept="image/*">
+<div class="drop" onclick="fileInput.click()">
+  <input type="file" id="fileInput" hidden accept="image/*">
   UPLOAD IMAGE
 </div>
 
-<canvas id="canvas"></canvas>
-
 <div class="controls">
-  <label>DETAIL</label>
-  <input type="range" id="detail" min="10" max="200" value="80">
-
-  <label>LINE THICKNESS</label>
-  <input type="range" id="thickness" min="1" max="5" value="1">
+  <label>Line Strength</label>
+  <input type="range" min="0.8" max="2.5" step="0.1" value="1.6" id="strength" class="slider">
 </div>
 
-<button class="print" onclick="window.print()">PRINT</button>
-<button class="reset" onclick="location.reload()">NEW</button>
+<div id="output"></div>
+
+<button class="print" onclick="window.print()">PRINT STENCIL</button>
+<button class="print" onclick="saveImage()">SAVE IMAGE</button>
+<button class="print" onclick="copyImage()">COPY IMAGE</button>
+<button class="reset" onclick="location.reload()">NEW IMAGE</button>
 
 </main>
 
+<div class="loading" id="loader">
+  <div class="spinner"></div>
+  <p>Creating stencil...</p>
+</div>
+
 <script>
-const fileIn = document.getElementById('fileIn');
-const canvas = document.getElementById('canvas');
-const ctx = canvas.getContext('2d');
+const fileInput = document.getElementById("fileInput");
+const apiKey = document.getElementById("apiKey");
+const output = document.getElementById("output");
+const loader = document.getElementById("loader");
+const strengthSlider = document.getElementById("strength");
 
-let originalImage = null;
+if (localStorage.api) apiKey.value = localStorage.api;
+apiKey.oninput = () => localStorage.api = apiKey.value;
 
-fileIn.onchange = e => {
+fileInput.onchange = e => {
   const file = e.target.files[0];
+  if (!file || !apiKey.value) return alert("Add API key + image");
+
+  preprocess(file, (img64) => {
+    generate(img64);
+  });
+};
+
+function preprocess(file, cb) {
+  const img = new Image();
   const reader = new FileReader();
 
-  reader.onload = f => {
-    const img = new Image();
-    img.src = f.target.result;
+  reader.onload = e => img.src = e.target.result;
 
-    img.onload = () => {
-      originalImage = img;
-      process();
-    };
+  img.onload = () => {
+    const canvas = document.createElement("canvas");
+    const ctx = canvas.getContext("2d");
+
+    canvas.width = img.width;
+    canvas.height = img.height;
+
+    ctx.drawImage(img, 0, 0);
+
+    let data = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    let p = data.data;
+
+    for (let i = 0; i < p.length; i += 4) {
+      let avg = (p[i] + p[i+1] + p[i+2]) / 3;
+
+      // stencil threshold
+      avg = avg > 130 ? 255 : 0;
+
+      p[i] = p[i+1] = p[i+2] = avg;
+    }
+
+    ctx.putImageData(data, 0, 0);
+
+    cb(canvas.toDataURL("image/jpeg", 1.0));
   };
 
   reader.readAsDataURL(file);
-};
+}
 
-document.getElementById('detail').oninput = process;
-document.getElementById('thickness').oninput = process;
+async function generate(b64) {
+  loader.style.display = "flex";
 
-function process() {
-  if (!originalImage) return;
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro:generateContent?key=${apiKey.value}`,
+      {
+        method:"POST",
+        headers:{ "Content-Type":"application/json" },
+        body: JSON.stringify({
+          contents:[{
+            parts:[
+              { inlineData:{ mimeType:"image/jpeg", data:b64 } },
+              { text: `
+Turn this into a tattoo stencil.
 
-  const detail = document.getElementById('detail').value;
-  const thickness = document.getElementById('thickness').value;
+RULES:
+- black ink only
+- bold clean outlines
+- no shading
+- high contrast
+- tattoo flash style
 
-  canvas.width = originalImage.width;
-  canvas.height = originalImage.height;
-
-  ctx.drawImage(originalImage, 0, 0);
-
-  let imgData = ctx.getImageData(0,0,canvas.width,canvas.height);
-  let data = imgData.data;
-
-  // grayscale
-  for (let i=0;i<data.length;i+=4){
-    let avg = (data[i]+data[i+1]+data[i+2])/3;
-    data[i]=data[i+1]=data[i+2]=avg;
-  }
-
-  // edge detect (simple Sobel)
-  let w = canvas.width;
-  let h = canvas.height;
-  let output = new Uint8ClampedArray(data.length);
-
-  for (let y=1;y<h-1;y++){
-    for (let x=1;x<w-1;x++){
-      let i = (y*w+x)*4;
-
-      let gx =
-        -data[((y-1)*w+(x-1))*4] + data[((y-1)*w+(x+1))*4] +
-        -2*data[(y*w+(x-1))*4]   + 2*data[(y*w+(x+1))*4] +
-        -data[((y+1)*w+(x-1))*4] + data[((y+1)*w+(x+1))*4];
-
-      let gy =
-        -data[((y-1)*w+(x-1))*4] -2*data[((y-1)*w+x)*4] -data[((y-1)*w+(x+1))*4] +
-         data[((y+1)*w+(x-1))*4] +2*data[((y+1)*w+x)*4] +data[((y+1)*w+(x+1))*4];
-
-      let mag = Math.sqrt(gx*gx + gy*gy);
-
-      let val = mag > detail ? 0 : 255;
-
-      output[i]=output[i+1]=output[i+2]=val;
-      output[i+3]=255;
-    }
-  }
-
-  imgData.data.set(output);
-
-  // thickness pass
-  for (let t=0;t<thickness;t++){
-    for (let i=0;i<imgData.data.length;i+=4){
-      if (imgData.data[i] === 0){
-        for (let j=-4;j<=4;j+=4){
-          if (imgData.data[i+j] !== undefined){
-            imgData.data[i+j]=0;
-          }
-        }
+Return only a generated image.
+` }
+            ]
+          }]
+        })
       }
-    }
+    );
+
+    const data = await res.json();
+    const part = data?.candidates?.[0]?.content?.parts?.[0];
+
+    if (!part?.inlineData) throw new Error("No image returned");
+
+    const img = document.createElement("img");
+    img.src = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+
+    const strength = strengthSlider.value;
+    img.style.filter = `contrast(${strength}) brightness(1.1)`;
+
+    output.innerHTML = "";
+    output.appendChild(img);
+
+  } catch (e) {
+    alert("Error: " + e.message);
   }
 
-  ctx.putImageData(imgData,0,0);
+  loader.style.display = "none";
+}
+
+/* -----------------------
+   SAVE + COPY FUNCTIONS
+------------------------ */
+
+function getImage() {
+  return document.querySelector("#output img");
+}
+
+// SAVE
+function saveImage() {
+  const img = getImage();
+  if (!img) return alert("No image yet");
+
+  const a = document.createElement("a");
+  a.href = img.src;
+  a.download = "stencil.png";
+  a.click();
+}
+
+// COPY
+async function copyImage() {
+  const img = getImage();
+  if (!img) return;
+
+  try {
+    const res = await fetch(img.src);
+    const blob = await res.blob();
+
+    await navigator.clipboard.write([
+      new ClipboardItem({ [blob.type]: blob })
+    ]);
+
+    alert("Copied to clipboard");
+  } catch (e) {
+    const a = document.createElement("a");
+    a.href = img.src;
+    a.download = "stencil.png";
+    a.click();
+    alert("Clipboard not supported — downloaded instead");
+  }
 }
 </script>
 
