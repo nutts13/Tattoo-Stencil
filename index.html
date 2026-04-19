@@ -5,18 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Master Protocol Studio</title>
 <style>
-  body { margin:0; background:#000; color:#fff; font-family:-apple-system, sans-serif; height: 100vh; display: flex; flex-direction: column; }
-  header { padding:20px; display:flex; justify-content:space-between; border-bottom:1px solid #222; align-items: center; }
-  input[type="password"] { background:#111; border:1px solid #333; color:#fff; padding:8px; border-radius:10px; width:220px; font-size: 11px; }
-  main { flex: 1; display: flex; align-items: center; justify-content: center; padding: 20px; overflow: hidden; position: relative; }
-  .drop { background:#111; border:2px dashed #333; padding:60px 20px; text-align:center; border-radius:20px; cursor:pointer; width: 100%; max-width: 400px; }
-  #canvas { max-width:100%; max-height:100%; border-radius:10px; display:none; background:#fff; cursor: crosshair; }
-  .footer { background: #111; padding: 20px; border-top: 1px solid #222; display: none; flex-direction: column; gap: 10px; }
-  .btn-row { display: flex; gap: 10px; }
-  button { flex: 1; padding:16px; border:none; border-radius:12px; font-weight:bold; cursor:pointer; font-size: 14px; }
-  .primary { background:#fff; color:#000; }
-  .secondary { background:#333; color:#fff; }
-  .loading { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.95); justify-content:center; align-items:center; flex-direction:column; z-index: 100; }
+  body { margin:0; background:#000; color:#fff; font-family:-apple-system, sans-serif; display:flex; flex-direction:column; height:100vh; }
+  header { padding:20px; display:flex; justify-content:space-between; border-bottom:1px solid #222; align-items:center; }
+  input[type="password"] { background:#111; border:1px solid #333; color:#fff; padding:8px; border-radius:10px; width:220px; font-size:11px; }
+  main { flex:1; display:flex; align-items:center; justify-content:center; padding:20px; position:relative; overflow:hidden; }
+  .drop { background:#111; border:2px dashed #333; padding:60px 20px; text-align:center; border-radius:20px; cursor:pointer; width:100%; max-width:400px; }
+  #stencilImg { max-width:100%; max-height:100%; border-radius:10px; display:none; background:#fff; }
+  .footer { background:#111; padding:20px; border-top:1px solid #222; display:none; flex-direction:column; gap:10px; }
+  .btn-row { display:flex; gap:10px; }
+  button { flex:1; padding:16px; border:none; border-radius:12px; font-weight:bold; cursor:pointer; }
+  .white { background:#fff; color:#000; }
+  .dark { background:#333; color:#fff; }
+  .loading { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.9); justify-content:center; align-items:center; flex-direction:column; z-index:100; }
   .spin { width:30px; height:30px; border:3px solid #333; border-top:3px solid #fff; border-radius:50%; animation:s 0.8s linear infinite; }
   @keyframes s { to { transform:rotate(360deg); } }
 </style>
@@ -24,39 +24,38 @@
 <body>
 
 <header>
-  <div style="font-weight: 900; letter-spacing: 1px;">MASTER PROTOCOL</div>
+  <div style="font-weight:900; letter-spacing:1px;">MASTER PROTOCOL</div>
   <input type="password" id="key" placeholder="Paste Default API Key">
 </header>
 
 <main>
   <div class="loading" id="loader">
     <div class="spin"></div>
-    <p style="margin-top:15px; font-weight: bold; color: #fff;">BLUEPRINTING...</p>
+    <p style="margin-top:15px; font-weight:bold;">BLUEPRINTING...</p>
   </div>
   <div class="drop" id="drop" onclick="fIn.click()">✦ UPLOAD REFERENCE<input type="file" id="fIn" hidden accept="image/*"></div>
-  <canvas id="canvas"></canvas>
+  <img id="stencilImg" src="">
 </main>
 
 <div class="footer" id="footer">
   <div class="btn-row">
-    <button class="primary" onclick="save()">SAVE PNG</button>
-    <button class="primary" onclick="copy()">COPY</button>
+    <button class="white" onclick="save()">SAVE PNG</button>
+    <button class="white" onclick="copy()">COPY</button>
   </div>
   <div class="btn-row">
-    <button class="secondary" onclick="window.print()">PRINT</button>
-    <button class="secondary" onclick="location.reload()">NEW IMAGE</button>
+    <button class="dark" onclick="window.print()">PRINT</button>
+    <button class="dark" onclick="location.reload()">NEW IMAGE</button>
   </div>
 </div>
 
 <script>
 const fIn = document.getElementById("fIn");
 const key = document.getElementById("key");
-const canvas = document.getElementById("canvas");
-const ctx = canvas.getContext("2d");
-const loader = document.getElementById("loader");
+const res = document.getElementById("stencilImg");
+const load = document.getElementById("loader");
 
-if (localStorage.mpKeyV10) key.value = localStorage.mpKeyV10;
-key.oninput = () => localStorage.mpKeyV10 = key.value;
+if (localStorage.mpKeyV11) key.value = localStorage.mpKeyV11;
+key.oninput = () => localStorage.mpKeyV11 = key.value;
 
 fIn.onchange = e => {
   const file = e.target.files[0];
@@ -67,7 +66,7 @@ fIn.onchange = e => {
 };
 
 async function runProtocol(b64) {
-  loader.style.display = "flex";
+  load.style.display = "flex";
   // Using Flash 2.0 - Bypasses the 3.1 "Image Blocking" for Free Keys
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key.value}`;
 
@@ -75,7 +74,7 @@ async function runProtocol(b64) {
     contents:[{
       parts:[
         { inlineData: { mimeType: "image/jpeg", data: b64 } },
-        { text: "STENCIL PROTOCOL: Analyze this image. Return ONLY a JSON array of coordinate paths to draw a tattoo stencil. 1. Solid paths for main anatomical structures. 2. Dotted paths for topographic shadow mapping. 3. Fine hatching paths for volume. format: [[{x:0,y:0},...]]" }
+        { text: "STENCIL PROTOCOL: You are a professional tattoo artist. Recreate this image as a technical blueprint. Instructions: 1. Solid black lines for anatomy. 2. Dotted topographical maps for shadow transitions. 3. Fine hatching for volume. Output: Provide ONLY the Base64-encoded string of a high-contrast black and white PNG. NO other text. NO markdown blocks." }
       ]
     }]
   };
@@ -83,43 +82,27 @@ async function runProtocol(b64) {
   try {
     const response = await fetch(url, { method: "POST", body: JSON.stringify(body) });
     const data = await response.json();
-    const paths = JSON.parse(data.candidates[0].content.parts[0].text.match(/\[[\s\S]*\]/)[0]);
     
-    renderProtocol(paths);
+    // Clean the text to remove any accidental spaces or text
+    let rawString = data.candidates[0].content.parts[0].text.trim();
+    // Remove Markdown formatting if the AI added it
+    rawString = rawString.replace(/^data:image\/[a-z]+;base64,/, "").replace(/```/g, "").replace(/base64/g, "").trim();
+
+    res.src = `data:image/png;base64,${rawString}`;
+    res.style.display = "block";
+    document.getElementById("drop").style.display = "none";
+    document.getElementById("footer").style.display = "flex";
   } catch (err) {
-    alert("Protocol Error: Try a clearer photo.");
+    alert("Protocol Error: The model output was interrupted. Try a simpler image or check your key.");
   } finally {
-    loader.style.display = "none";
+    load.style.display = "none";
   }
 }
 
-function renderProtocol(paths) {
-  canvas.width = 2000; canvas.height = 2000; // High res for printing
-  ctx.fillStyle = "white"; ctx.fillRect(0,0,2000,2000);
-  ctx.strokeStyle = "black"; ctx.lineWidth = 3;
-  
-  paths.forEach((path, i) => {
-    ctx.beginPath();
-    if(i % 3 === 0) ctx.setLineDash([2, 8]); // Topographic Dots
-    else ctx.setLineDash([]); // Solid Lines
-    
-    path.forEach((p, index) => {
-      const x = p.x * 20; const y = p.y * 20; // Scale to canvas
-      if(index === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    });
-    ctx.stroke();
-  });
-
-  canvas.style.display = "block";
-  document.getElementById("drop").style.display = "none";
-  document.getElementById("footer").style.display = "flex";
-}
-
-function save() { const a = document.createElement("a"); a.download = "master-stencil.png"; a.href = canvas.toDataURL(); a.click(); }
+function save() { const a = document.createElement("a"); a.download = "master-stencil.png"; a.href = res.src; a.click(); }
 async function copy() { 
-  const blob = await new Promise(res => canvas.toBlob(res));
-  try { await navigator.clipboard.write([new ClipboardItem({"image/png":blob})]); alert("Copied!"); } catch { save(); }
+  const b = await (await fetch(res.src)).blob();
+  try { await navigator.clipboard.write([new ClipboardItem({"image/png":b})]); alert("Copied!"); } catch { save(); }
 }
 </script>
 </body>
