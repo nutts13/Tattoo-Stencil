@@ -8,6 +8,7 @@
 <style>
 body { margin:0; background:#000; color:#fff; font-family:-apple-system; }
 header { padding:1rem; display:flex; justify-content:space-between; border-bottom:1px solid #333; }
+input { background:#222; border:1px solid #444; color:#fff; padding:8px; border-radius:10px; }
 
 main { max-width:600px; margin:auto; padding:20px; }
 
@@ -16,30 +17,13 @@ main { max-width:600px; margin:auto; padding:20px; }
 canvas { width:100%; background:#fff; margin-top:20px; border-radius:10px; }
 
 .controls { margin-top:15px; }
-label { font-size:12px; color:#aaa; }
+.controls label { font-size:12px; color:#aaa; }
+.controls input { width:100%; }
 
-select, input {
-  width:100%;
-  margin-bottom:10px;
-  padding:8px;
-  background:#222;
-  color:#fff;
-  border:1px solid #444;
-  border-radius:8px;
-}
-
-button {
-  width:100%;
-  padding:15px;
-  margin-top:10px;
-  border:none;
-  border-radius:10px;
-  font-weight:bold;
-}
+button { width:100%; margin-top:10px; padding:15px; border:none; border-radius:10px; font-weight:bold; }
 
 .print { background:#fff; color:#000; }
 .reset { background:#333; color:#fff; }
-.save { background:#0a84ff; color:#fff; }
 
 @media print {
   body * { display:none; }
@@ -51,7 +35,8 @@ button {
 <body>
 
 <header>
-  <div>STENCIL ELITE PRO</div>
+  <div>STENCIL ELITE</div>
+  <input id="apiKey" placeholder="API Key">
 </header>
 
 <main>
@@ -64,21 +49,13 @@ button {
 <canvas id="canvas"></canvas>
 
 <div class="controls">
-  <label>PRESET</label>
-  <select id="preset">
-    <option value="fine">Fine Line</option>
-    <option value="realism">Realism Guide</option>
-    <option value="bold">Bold Traditional</option>
-  </select>
-
   <label>DETAIL</label>
-  <input type="range" id="detail" min="20" max="200" value="80">
+  <input type="range" id="detail" min="10" max="200" value="80">
 
-  <label>THICKNESS</label>
-  <input type="range" id="thickness" min="1" max="6" value="2">
+  <label>LINE THICKNESS</label>
+  <input type="range" id="thickness" min="1" max="5" value="1">
 </div>
 
-<button class="save" onclick="saveImage()">SAVE PNG</button>
 <button class="print" onclick="window.print()">PRINT</button>
 <button class="reset" onclick="location.reload()">NEW</button>
 
@@ -92,51 +69,35 @@ const ctx = canvas.getContext('2d');
 let originalImage = null;
 
 fileIn.onchange = e => {
+  const file = e.target.files[0];
   const reader = new FileReader();
+
   reader.onload = f => {
     const img = new Image();
     img.src = f.target.result;
+
     img.onload = () => {
       originalImage = img;
       process();
     };
   };
-  reader.readAsDataURL(e.target.files[0]);
+
+  reader.readAsDataURL(file);
 };
 
 document.getElementById('detail').oninput = process;
 document.getElementById('thickness').oninput = process;
-document.getElementById('preset').onchange = applyPreset;
 
-function applyPreset(){
-  const p = preset.value;
-
-  if (p === "fine"){
-    detail.value = 70;
-    thickness.value = 1;
-  }
-  if (p === "realism"){
-    detail.value = 110;
-    thickness.value = 2;
-  }
-  if (p === "bold"){
-    detail.value = 60;
-    thickness.value = 4;
-  }
-
-  process();
-}
-
-function process(){
+function process() {
   if (!originalImage) return;
 
-  const detail = parseInt(detailSlider.value);
-  const thickness = parseInt(thicknessSlider.value);
+  const detail = document.getElementById('detail').value;
+  const thickness = document.getElementById('thickness').value;
 
   canvas.width = originalImage.width;
   canvas.height = originalImage.height;
 
-  ctx.drawImage(originalImage,0,0);
+  ctx.drawImage(originalImage, 0, 0);
 
   let imgData = ctx.getImageData(0,0,canvas.width,canvas.height);
   let data = imgData.data;
@@ -147,11 +108,11 @@ function process(){
     data[i]=data[i+1]=data[i+2]=avg;
   }
 
+  // edge detect (simple Sobel)
   let w = canvas.width;
   let h = canvas.height;
   let output = new Uint8ClampedArray(data.length);
 
-  // face priority (center weighting)
   for (let y=1;y<h-1;y++){
     for (let x=1;x<w-1;x++){
       let i = (y*w+x)*4;
@@ -167,14 +128,7 @@ function process(){
 
       let mag = Math.sqrt(gx*gx + gy*gy);
 
-      // center boost
-      let dx = (x - w/2)/(w/2);
-      let dy = (y - h/2)/(h/2);
-      let dist = Math.sqrt(dx*dx + dy*dy);
-
-      let adjusted = mag * (1.5 - dist);
-
-      let val = adjusted > detail ? 0 : 255;
+      let val = mag > detail ? 0 : 255;
 
       output[i]=output[i+1]=output[i+2]=val;
       output[i+3]=255;
@@ -183,22 +137,11 @@ function process(){
 
   imgData.data.set(output);
 
-  // line smoothing
-  for (let i=4;i<imgData.data.length-4;i+=4){
-    let avg = (
-      imgData.data[i-4] +
-      imgData.data[i] +
-      imgData.data[i+4]
-    ) / 3;
-
-    imgData.data[i]=imgData.data[i+1]=imgData.data[i+2]=avg;
-  }
-
-  // thickness
+  // thickness pass
   for (let t=0;t<thickness;t++){
     for (let i=0;i<imgData.data.length;i+=4){
       if (imgData.data[i] === 0){
-        for (let j=-8;j<=8;j+=4){
+        for (let j=-4;j<=4;j+=4){
           if (imgData.data[i+j] !== undefined){
             imgData.data[i+j]=0;
           }
@@ -208,13 +151,6 @@ function process(){
   }
 
   ctx.putImageData(imgData,0,0);
-}
-
-function saveImage(){
-  const link = document.createElement('a');
-  link.download = 'stencil.png';
-  link.href = canvas.toDataURL();
-  link.click();
 }
 </script>
 
