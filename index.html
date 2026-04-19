@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Stencil AI Studio</title>
+<title>Stencil Studio</title>
 
 <style>
 body {
@@ -11,13 +11,6 @@ body {
   background:#000;
   color:#fff;
   font-family:-apple-system,sans-serif;
-}
-
-header {
-  padding:20px;
-  border-bottom:1px solid #222;
-  text-align:center;
-  font-weight:bold;
 }
 
 main {
@@ -35,18 +28,11 @@ main {
   cursor:pointer;
 }
 
-#output {
+canvas {
+  width:100%;
   margin-top:20px;
   background:#fff;
   border-radius:20px;
-  min-height:400px;
-  display:flex;
-  align-items:center;
-  justify-content:center;
-}
-
-#output img {
-  width:100%;
 }
 
 button {
@@ -64,21 +50,14 @@ button {
 .copy { background:#3498db; color:#fff; }
 .reset { background:#333; color:#fff; }
 
-.loading {
-  display:none;
-  position:fixed;
-  inset:0;
-  background:rgba(0,0,0,0.9);
-  justify-content:center;
-  align-items:center;
-  flex-direction:column;
+.slider {
+  width:100%;
+  margin-top:10px;
 }
 </style>
 </head>
 
 <body>
-
-<header>STENCIL AI STUDIO</header>
 
 <main>
 
@@ -87,7 +66,10 @@ button {
   UPLOAD IMAGE
 </div>
 
-<div id="output"></div>
+<label>Line Strength</label>
+<input type="range" id="strength" min="10" max="100" value="40" class="slider">
+
+<canvas id="canvas"></canvas>
 
 <button class="print" onclick="window.print()">PRINT</button>
 <button class="save" onclick="saveImage()">SAVE IMAGE</button>
@@ -96,83 +78,98 @@ button {
 
 </main>
 
-<div class="loading" id="loader">
-  <p>Generating stencil...</p>
-</div>
-
 <script>
 const fileInput = document.getElementById("fileInput");
-const output = document.getElementById("output");
-const loader = document.getElementById("loader");
+const canvas = document.getElementById("canvas");
+const ctx = canvas.getContext("2d");
+const strength = document.getElementById("strength");
 
 fileInput.onchange = e => {
   const file = e.target.files[0];
   if (!file) return;
 
   const reader = new FileReader();
-  reader.onload = ev => generateStencil(ev.target.result);
+  reader.onload = ev => loadImage(ev.target.result);
   reader.readAsDataURL(file);
 };
 
-async function generateStencil(imageBase64) {
-  loader.style.display = "flex";
+function loadImage(src) {
+  const img = new Image();
+  img.src = src;
 
-  try {
-    // STEP 1: Build strong stencil prompt
-    const prompt = `
-tattoo stencil, black ink, clean outline, no shading,
-high contrast, line art, face structure, professional tattoo stencil
-`;
+  img.onload = () => {
+    canvas.width = img.width;
+    canvas.height = img.height;
 
-    // STEP 2: Send to Stable Diffusion (Pollinations)
-    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}`;
+    ctx.drawImage(img,0,0);
+    applyEdgeStencil();
+  };
+}
 
-    const img = new Image();
-    img.src = url + "&width=1024&height=1024&seed=" + Math.random();
+function applyEdgeStencil() {
+  const w = canvas.width;
+  const h = canvas.height;
 
-    img.onload = () => {
-      output.innerHTML = "";
-      output.appendChild(img);
-      loader.style.display = "none";
-    };
+  let imgData = ctx.getImageData(0,0,w,h);
+  let data = imgData.data;
 
-    img.onerror = () => {
-      throw new Error("Image generation failed");
-    };
+  let output = ctx.createImageData(w,h);
+  let out = output.data;
 
-  } catch (err) {
-    loader.style.display = "none";
-    alert(err.message);
+  const threshold = strength.value;
+
+  for (let y = 1; y < h-1; y++) {
+    for (let x = 1; x < w-1; x++) {
+
+      let i = (y*w + x)*4;
+
+      let gx =
+        -getGray(x-1,y-1,w,data) -2*getGray(x-1,y,w,data) -getGray(x-1,y+1,w,data) +
+         getGray(x+1,y-1,w,data) +2*getGray(x+1,y,w,data) +getGray(x+1,y+1,w,data);
+
+      let gy =
+        -getGray(x-1,y-1,w,data) -2*getGray(x,y-1,w,data) -getGray(x+1,y-1,w,data) +
+         getGray(x-1,y+1,w,data) +2*getGray(x,y+1,w,data) +getGray(x+1,y+1,w,data);
+
+      let mag = Math.sqrt(gx*gx + gy*gy);
+
+      let val = mag > threshold ? 0 : 255;
+
+      out[i] = out[i+1] = out[i+2] = val;
+      out[i+3] = 255;
+    }
   }
+
+  ctx.putImageData(output,0,0);
+}
+
+function getGray(x,y,w,data){
+  let i = (y*w + x)*4;
+  return (data[i]+data[i+1]+data[i+2])/3;
 }
 
 /* SAVE */
 function saveImage() {
-  const img = document.querySelector("#output img");
-  if (!img) return alert("No image");
-
   const a = document.createElement("a");
-  a.href = img.src;
   a.download = "stencil.png";
+  a.href = canvas.toDataURL("image/png");
   a.click();
 }
 
 /* COPY */
 async function copyImage() {
-  const img = document.querySelector("#output img");
-  if (!img) return;
-
   try {
-    const res = await fetch(img.src);
-    const blob = await res.blob();
-
+    const blob = await new Promise(r => canvas.toBlob(r));
     await navigator.clipboard.write([
-      new ClipboardItem({ [blob.type]: blob })
+      new ClipboardItem({ "image/png": blob })
     ]);
-
     alert("Copied");
   } catch {
-    alert("Copy failed (browser limitation)");
+    const a = document.createElement("a");
+    a.download = "stencil.png";
+    a.href = canvas.toDataURL("image/png");
+    a.click();
+    alert("Downloaded instead");
   }
 }
 </script>
