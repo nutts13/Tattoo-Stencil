@@ -2,105 +2,215 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Gemini 3 Stencil</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Stencil Pro Elite</title>
+
 <style>
-  :root { --bg: #f5f5f7; --text: #1d1d1f; --accent: #0071e3; }
-  body { background: var(--bg); color: var(--text); font-family: -apple-system, sans-serif; margin: 0; }
-  header { padding: 1rem; background: #fff; border-bottom: 1px solid #d2d2d7; display: flex; justify-content: space-between; align-items: center; }
-  .key-input { border: 1px solid #d2d2d7; border-radius: 20px; padding: 8px 15px; font-size: 12px; width: 180px; }
-  main { max-width: 600px; margin: 2rem auto; padding: 0 20px; }
-  .drop-zone { background: #fff; border: 2px dashed #d2d2d7; border-radius: 18px; padding: 50px 20px; text-align: center; cursor: pointer; position: relative; }
-  #fileIn { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
-  #svgOut { background: #fff; border-radius: 18px; margin-top: 20px; min-height: 300px; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(0,0,0,0.05); overflow: hidden; }
-  #svgOut svg { width: 100%; height: auto; }
-  .loading { display: none; position: fixed; inset: 0; background: rgba(255,255,255,0.8); backdrop-filter: blur(5px); flex-direction: column; align-items: center; justify-content: center; z-index: 100; }
-  .spinner { width: 30px; height: 30px; border: 3px solid #eee; border-top: 3px solid var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite; }
-  @keyframes spin { to { transform: rotate(360deg); } }
-  .btn { width: 100%; padding: 16px; border-radius: 12px; border: none; background: #000; color: #fff; font-weight: 600; margin-top: 15px; display: none; }
+:root { --bg:#000; --ui:#1a1a1a; }
+
+body {
+  margin:0;
+  background:var(--bg);
+  color:#fff;
+  font-family:-apple-system, sans-serif;
+}
+
+header {
+  padding:1.5rem;
+  border-bottom:1px solid #333;
+  display:flex;
+  justify-content:space-between;
+}
+
+.api-input {
+  background:#222;
+  border:1px solid #444;
+  border-radius:20px;
+  color:#fff;
+  padding:8px 15px;
+  font-size:11px;
+  width:200px;
+}
+
+main {
+  max-width:600px;
+  margin:auto;
+  padding:20px;
+}
+
+.drop-zone {
+  background:var(--ui);
+  border:2px dashed #444;
+  border-radius:20px;
+  padding:60px 20px;
+  text-align:center;
+  cursor:pointer;
+}
+
+#output {
+  background:#fff;
+  border-radius:20px;
+  margin-top:20px;
+  min-height:400px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  overflow:hidden;
+}
+
+#output img {
+  width:100%;
+}
+
+.loading {
+  display:none;
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,0.9);
+  align-items:center;
+  justify-content:center;
+  flex-direction:column;
+}
+
+.spinner {
+  width:30px;
+  height:30px;
+  border:3px solid #333;
+  border-top:3px solid #fff;
+  border-radius:50%;
+  animation:spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform:rotate(360deg); }
+}
+
+.btn {
+  width:100%;
+  padding:18px;
+  border:none;
+  border-radius:12px;
+  margin-top:15px;
+  font-weight:800;
+  cursor:pointer;
+  display:none;
+}
+
+.print { background:#fff; color:#000; }
+.reset { background:#333; color:#fff; }
 </style>
 </head>
+
 <body>
 
 <header>
-  <div style="font-weight: 700;">GEMINI 3 PROTOTYPE</div>
-  <input type="password" id="apiKey" class="key-input" placeholder="Paste Gemini Key">
+  <div style="font-weight:900;letter-spacing:2px;">STENCIL ELITE</div>
+  <input type="password" id="apiKey" class="api-input" placeholder="API Key">
 </header>
 
 <main>
-  <div class="drop-zone" id="uploadCard">
-    <input type="file" id="fileIn" accept="image/*">
-    <div style="font-size: 14px; color: #86868b;">✦ TAP TO START STENCIL</div>
-  </div>
 
-  <div id="svgOut"></div>
-  <button id="printBtn" class="btn" onclick="window.print()">PRINT STENCIL</button>
-  <button id="resetBtn" class="btn" style="background:#e8e8ed; color:#000;" onclick="location.reload()">NEW PHOTO</button>
+<div class="drop-zone" onclick="fileIn.click()">
+  <input type="file" id="fileIn" hidden accept="image/*">
+  <div style="color:#aaa;font-weight:bold;">UPLOAD IMAGE</div>
+</div>
+
+<div id="output"></div>
+
+<button class="btn print" onclick="window.print()">PRINT STENCIL</button>
+<button class="btn reset" onclick="location.reload()">NEW IMAGE</button>
+
 </main>
 
 <div class="loading" id="loader">
   <div class="spinner"></div>
-  <p style="margin-top: 15px; font-weight: 500;">Gemini 3 is tracing...</p>
+  <p>Generating stencil...</p>
 </div>
 
 <script>
-  const keyInput = document.getElementById('apiKey');
-  if (localStorage.getItem('g3_key')) keyInput.value = localStorage.getItem('g3_key');
-  keyInput.oninput = () => localStorage.setItem('g3_key', keyInput.value);
+const fileIn = document.getElementById('fileIn');
+const apiKeyInput = document.getElementById('apiKey');
 
-  document.getElementById('fileIn').onchange = (e) => {
-    const file = e.target.files[0];
-    if (!file || !keyInput.value) return alert("Key needed first!");
-    
-    document.getElementById('loader').style.display = 'flex';
-    const reader = new FileReader();
-    reader.onload = async (f) => {
-      const b64 = f.target.result.split(',')[1];
-      await generateWithG3(b64);
-    };
-    reader.readAsDataURL(file);
+if (localStorage.getItem('key'))
+  apiKeyInput.value = localStorage.getItem('key');
+
+apiKeyInput.oninput = () =>
+  localStorage.setItem('key', apiKeyInput.value);
+
+fileIn.onchange = e => {
+  const file = e.target.files[0];
+  if (!file || !apiKeyInput.value)
+    return alert("Add API key + image");
+
+  const reader = new FileReader();
+  reader.onload = async f => {
+    const base64 = f.target.result.split(',')[1];
+    generateStencil(base64);
   };
+  reader.readAsDataURL(file);
+};
 
-  async function generateWithG3(b64) {
-    const key = keyInput.value;
-    // TARGETING GEMINI 3 FLASH (The model I use!)
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3-flash-preview:generateContent?key=${key}`;
+async function generateStencil(b64) {
+  loader.style.display = "flex";
 
-    const payload = {
-      contents: [{
-        parts: [
-          { inline_data: { mime_type: "image/jpeg", data: b64 } },
-          { text: "Output ONLY a raw <svg> element that is a high-contrast black and white tattoo stencil of this face. Focus on clean outlines of eyes, nose, lips, and hair. No shading. No background." }
-        ]
-      }]
-    };
+  try {
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro:generateContent?key=${apiKeyInput.value}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contents: [{
+            parts: [
+              {
+                inlineData: {
+                  mimeType: "image/jpeg",
+                  data: b64
+                }
+              },
+              {
+                text: `
+Convert this image into a tattoo stencil.
 
-    try {
-      const response = await fetch(url, { method: 'POST', body: JSON.stringify(payload) });
-      const data = await response.json();
-      
-      // Safety check for the specific data.candidates error
-      if (!data.candidates || data.candidates.length === 0) {
-        throw new Error("Model busy or safety block. Try again in 5 seconds.");
+Rules:
+- Black lines only
+- White background
+- No shading or grey
+- Clean crisp outlines
+- Focus on facial structure
+
+Return only the image.
+`
+              }
+            ]
+          }]
+        })
       }
+    );
 
-      const text = data.candidates[0].content.parts[0].text;
-      const svgMatch = text.match(/<svg[\s\S]*?<\/svg>/);
+    const data = await res.json();
 
-      if (svgMatch) {
-        document.getElementById('svgOut').innerHTML = svgMatch[0];
-        document.getElementById('uploadCard').style.display = 'none';
-        document.getElementById('printBtn').style.display = 'block';
-        document.getElementById('resetBtn').style.display = 'block';
-      } else {
-        throw new Error("Could not find SVG code in response.");
-      }
-    } catch (err) {
-      alert("Error: " + err.message);
-    } finally {
-      document.getElementById('loader').style.display = 'none';
-    }
+    const part = data?.candidates?.[0]?.content?.parts?.[0];
+
+    if (!part?.inlineData) throw new Error("No image returned");
+
+    const img = document.createElement("img");
+    img.src = `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
+
+    output.innerHTML = "";
+    output.appendChild(img);
+
+    document.querySelector(".drop-zone").style.display = "none";
+    document.querySelector(".print").style.display = "block";
+    document.querySelector(".reset").style.display = "block";
+
+  } catch (err) {
+    alert("Failed: " + err.message);
   }
+
+  loader.style.display = "none";
+}
 </script>
+
 </body>
 </html>
