@@ -3,30 +3,21 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Stencil Studio Pro</title>
+<title>Stencil AI Studio</title>
 
 <style>
 body {
   margin:0;
   background:#000;
   color:#fff;
-  font-family:-apple-system, sans-serif;
+  font-family:-apple-system,sans-serif;
 }
 
 header {
   padding:20px;
   border-bottom:1px solid #222;
-  display:flex;
-  justify-content:space-between;
-}
-
-input {
-  background:#111;
-  color:#fff;
-  border:1px solid #333;
-  padding:8px;
-  border-radius:10px;
-  width:200px;
+  text-align:center;
+  font-weight:bold;
 }
 
 main {
@@ -44,15 +35,18 @@ main {
   cursor:pointer;
 }
 
-canvas {
-  width:100%;
+#output {
   margin-top:20px;
   background:#fff;
   border-radius:20px;
+  min-height:400px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
 }
 
-.controls {
-  margin-top:15px;
+#output img {
+  width:100%;
 }
 
 button {
@@ -70,16 +64,21 @@ button {
 .copy { background:#3498db; color:#fff; }
 .reset { background:#333; color:#fff; }
 
-.slider { width:100%; }
+.loading {
+  display:none;
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,0.9);
+  justify-content:center;
+  align-items:center;
+  flex-direction:column;
+}
 </style>
 </head>
 
 <body>
 
-<header>
-  <div><b>STENCIL PRO</b></div>
-  <input type="password" id="apiKey" placeholder="Gemini API Key">
-</header>
+<header>STENCIL AI STUDIO</header>
 
 <main>
 
@@ -88,12 +87,7 @@ button {
   UPLOAD IMAGE
 </div>
 
-<div class="controls">
-  <label>Line Strength</label>
-  <input type="range" id="strength" min="1" max="3" step="0.1" value="1.8">
-</div>
-
-<canvas id="canvas"></canvas>
+<div id="output"></div>
 
 <button class="print" onclick="window.print()">PRINT</button>
 <button class="save" onclick="saveImage()">SAVE IMAGE</button>
@@ -102,76 +96,83 @@ button {
 
 </main>
 
+<div class="loading" id="loader">
+  <p>Generating stencil...</p>
+</div>
+
 <script>
 const fileInput = document.getElementById("fileInput");
-const canvas = document.getElementById("canvas");
-const ctx = canvas.getContext("2d");
-const strength = document.getElementById("strength");
+const output = document.getElementById("output");
+const loader = document.getElementById("loader");
 
 fileInput.onchange = e => {
   const file = e.target.files[0];
   if (!file) return;
 
   const reader = new FileReader();
-  reader.onload = ev => loadImage(ev.target.result);
+  reader.onload = ev => generateStencil(ev.target.result);
   reader.readAsDataURL(file);
 };
 
-function loadImage(src) {
-  const img = new Image();
-  img.src = src;
+async function generateStencil(imageBase64) {
+  loader.style.display = "flex";
 
-  img.onload = () => {
-    canvas.width = img.width;
-    canvas.height = img.height;
+  try {
+    // STEP 1: Build strong stencil prompt
+    const prompt = `
+tattoo stencil, black ink, clean outline, no shading,
+high contrast, line art, face structure, professional tattoo stencil
+`;
 
-    ctx.drawImage(img,0,0);
+    // STEP 2: Send to Stable Diffusion (Pollinations)
+    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}`;
 
-    applyStencil();
-  };
-}
+    const img = new Image();
+    img.src = url + "&width=1024&height=1024&seed=" + Math.random();
 
-function applyStencil() {
-  let imgData = ctx.getImageData(0,0,canvas.width,canvas.height);
-  let data = imgData.data;
+    img.onload = () => {
+      output.innerHTML = "";
+      output.appendChild(img);
+      loader.style.display = "none";
+    };
 
-  const threshold = strength.value * 120;
+    img.onerror = () => {
+      throw new Error("Image generation failed");
+    };
 
-  for (let i=0;i<data.length;i+=4) {
-    let avg = (data[i]+data[i+1]+data[i+2])/3;
-
-    avg = avg > threshold ? 255 : 0;
-
-    data[i]=data[i+1]=data[i+2]=avg;
+  } catch (err) {
+    loader.style.display = "none";
+    alert(err.message);
   }
-
-  ctx.putImageData(imgData,0,0);
 }
 
-/* -------------------
-   SAVE + COPY
--------------------- */
-
+/* SAVE */
 function saveImage() {
+  const img = document.querySelector("#output img");
+  if (!img) return alert("No image");
+
   const a = document.createElement("a");
+  a.href = img.src;
   a.download = "stencil.png";
-  a.href = canvas.toDataURL("image/png");
   a.click();
 }
 
+/* COPY */
 async function copyImage() {
+  const img = document.querySelector("#output img");
+  if (!img) return;
+
   try {
-    const blob = await new Promise(r => canvas.toBlob(r));
+    const res = await fetch(img.src);
+    const blob = await res.blob();
+
     await navigator.clipboard.write([
-      new ClipboardItem({ "image/png": blob })
+      new ClipboardItem({ [blob.type]: blob })
     ]);
+
     alert("Copied");
   } catch {
-    const a = document.createElement("a");
-    a.download = "stencil.png";
-    a.href = canvas.toDataURL("image/png");
-    a.click();
-    alert("Downloaded instead (clipboard not supported)");
+    alert("Copy failed (browser limitation)");
   }
 }
 </script>
