@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Stencil</title>
+<link href="https://fonts.googleapis.com/css2?family=Cormorant:ital,wght@0,300;0,400;1,300&family=Geist+Mono:wght@300;400;500&display=swap" rel="stylesheet">
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  :root {
+    --bg: #f8f7f4;
+    --surface: #ffffff;
+    --border: #e8e4de;
+    --text: #1a1a1a;
+    --muted: #a39e93;
+    --accent: #000000;
+    --radius: 12px;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Cormorant', serif;
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* --- Header --- */
+  header {
+    padding: 1.5rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+  .logo { font-size: 1.4rem; letter-spacing: 0.2em; text-transform: uppercase; }
+  .logo em { font-style: italic; }
+  
+  .api-input {
+    font-family: 'Geist Mono', monospace;
+    font-size: 0.75rem;
+    padding: 0.6rem 1rem;
+    border: 1px solid var(--border);
+    border-radius: 30px;
+    width: 240px;
+    outline: none;
+    background: var(--bg);
+  }
+
+  /* --- Main Container --- */
+  main {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+  }
+
+  .view { display: none; animation: fadeIn 0.4s ease; }
+  .view.active { display: block; }
+  @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+  /* --- Home View: Upload & Gallery --- */
+  .upload-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 3rem 2rem;
+    text-align: center;
+    cursor: pointer;
+    position: relative;
+    transition: transform 0.2s;
+    margin-bottom: 3rem;
+  }
+  .upload-card:active { transform: scale(0.98); }
+  .upload-card input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
+  .upload-icon { font-size: 3rem; margin-bottom: 1rem; opacity: 0.3; }
+  .upload-text { font-family: 'Geist Mono', monospace; text-transform: uppercase; letter-spacing: 2px; font-size: 0.8rem; color: var(--muted); }
+
+  .gallery-section-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .gallery-section-header h2 { font-family: 'Geist Mono', monospace; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 2px; color: var(--muted); }
+  
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 1.5rem;
+  }
+  .stencil-thumb {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    aspect-ratio: 1;
+    overflow: hidden;
+    position: relative;
+    cursor: pointer;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.02);
+  }
+  .stencil-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .del-btn {
+    position: absolute; top: 8px; right: 8px;
+    background: rgba(0,0,0,0.6); color: white;
+    border: none; width: 24px; height: 24px; border-radius: 50%;
+    font-size: 10px; display: flex; align-items: center; justify-content: center;
+  }
+
+  /* --- Result View --- */
+  .result-container { display: flex; flex-direction: column; gap: 2rem; }
+  
+  .canvas-area {
+    background: #fff;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    display: flex; align-items: center; justify-content: center;
+    min-height: 500px;
+    box-shadow: 0 10px 30px rgba(0,0,0,0.05);
+  }
+  .canvas-area img { max-width: 100%; height: auto; }
+
+  .editor-controls {
+    background: var(--surface);
+    padding: 2rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+  }
+  
+  .control-group label {
+    display: flex; justify-content: space-between;
+    font-family: 'Geist Mono', monospace; font-size: 0.65rem; 
+    text-transform: uppercase; margin-bottom: 1rem;
+  }
+
+  input[type=range] { -webkit-appearance: none; width: 100%; height: 4px; background: var(--border); border-radius: 2px; }
+  input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 24px; width: 24px; border-radius: 50%; background: var(--accent); }
+
+  .action-bar { display: grid; grid-template-columns: repeat(4, 1fr); gap: 1rem; }
+  .btn {
+    padding: 1.2rem;
+    border-radius: var(--radius);
+    border: 1px solid var(--border);
+    background: var(--surface);
+    font-family: 'Geist Mono', monospace; font-size: 0.7rem;
+    text-transform: uppercase; letter-spacing: 1px;
+    cursor: pointer; transition: 0.2s;
+  }
+  .btn-primary { background: var(--accent); color: white; border: none; }
+  .btn:active { transform: translateY(2px); opacity: 0.8; }
+
+  /* --- Loading State --- */
+  .loading-overlay {
+    position: fixed; inset: 0; background: rgba(248, 247, 244, 0.9);
+    display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 1000;
+  }
+  .spinner {
+    width: 40px; height: 40px; border: 3px solid var(--border);
+    border-top-color: var(--accent); border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* iPad Landscape adjustments */
+  @media (min-width: 1024px) {
+    .result-container { flex-direction: row; align-items: flex-start; }
+    .canvas-area { flex: 1; }
+    .editor-pane { width: 350px; display: flex; flex-direction: column; gap: 1.5rem; }
+    .editor-controls { grid-template-columns: 1fr; }
+    .action-bar { grid-template-columns: 1fr 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">S<em>tencil</em></div>
+  <input type="password" id="apiKey" class="api-input" placeholder="Enter Gemini API Key">
+</header>
+
+<main>
+  <div id="viewHome" class="view active">
+    <div class="upload-card">
+      <input type="file" id="fileInput" accept="image/*">
+      <div class="upload-icon">✦</div>
+      <div class="upload-text">Upload Portrait to Convert</div>
+    </div>
+
+    <div class="gallery-section-header">
+      <h2>Recent Stencils</h2>
+      <button onclick="clearHistory()" style="background:none; border:none; font-family:'Geist Mono'; font-size:0.6rem; color:var(--muted); text-transform:uppercase; cursor:pointer;">Clear All</button>
+    </div>
+
+    <div id="galleryGrid" class="grid">
+      </div>
+  </div>
+
+  <div id="viewResult" class="view">
+    <div class="result-container">
+      <div class="canvas-area">
+        <img id="mainStencil" src="" alt="Stencil Result">
+      </div>
+
+      <div class="editor-pane">
+        <div class="editor-controls">
+          <div class="control-group">
+            <label>Detail Level <span id="labelDetail">Medium</span></label>
+            <input type="range" id="rangeDetail" min="1" max="3" value="2">
+          </div>
+          <div class="control-group">
+            <label>Line Weight <span id="labelWeight">Medium</span></label>
+            <input type="range" id="rangeWeight" min="1" max="3" value="2">
+          </div>
+        </div>
+
+        <div class="action-bar">
+          <button class="btn btn-primary" onclick="downloadImage()">Save</button>
+          <button class="btn" onclick="copyToClipboard()">Copy</button>
+          <button class="btn" onclick="window.print()">Print</button>
+          <button class="btn" onclick="goHome()">Home</button>
+        </div>
+        <button class="btn" onclick="processImage(true)" style="width:100%; margin-top:10px;">Apply Adjustments</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="loadingOverlay" class="loading-overlay">
+  <div class="spinner"></div>
+  <p style="margin-top:1.5rem; font-family:'Geist Mono'; font-size:0.7rem; text-transform:uppercase;">Generating Stencil...</p>
+</div>
+
+<script>
+  let rawImageBase64 = null;
+  let history = JSON.parse(localStorage.getItem('stencil_history') || '[]');
+
+  const CONFIG = {
+    detail: { 1: "Minimalist", 2: "Balanced", 3: "Intricate" },
+    weight: { 1: "Fine", 2: "Standard", 3: "Bold" }
+  };
+
+  // Init
+  document.addEventListener('DOMContentLoaded', () => {
+    const key = localStorage.getItem('gemini_api_key');
+    if (key) document.getElementById('apiKey').value = key;
+    renderGallery();
+  });
+
+  document.getElementById('apiKey').addEventListener('input', e => {
+    localStorage.setItem('gemini_api_key', e.target.value.trim());
+  });
+
+  document.getElementById('fileInput').addEventListener('change', e => {
+    const file = e.target.files[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onload = (ev) => {
+        rawImageBase64 = ev.target.result.split(',')[1];
+        processImage();
+      };
+      reader.readAsDataURL(file);
+    }
+  });
+
+  async function processImage(isUpdate = false) {
+    const key = document.getElementById('apiKey').value;
+    if (!key) return alert("API Key required.");
+
+    document.getElementById('loadingOverlay').style.display = 'flex';
+
+    const dVal = document.getElementById('rangeDetail').value;
+    const wVal = document.getElementById('rangeWeight').value;
+
+    const prompt = `Convert this portrait into a professional tattoo stencil. 
+    Detail level: ${CONFIG.detail[dVal]}. Line weight: ${CONFIG.weight[wVal]}. 
+    Strictly black linework on pure white. No shading. High contrast for thermal transfer.`;
+
+    try {
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-preview-image-generation:generateContent?key=${key}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [
+            { inline_data: { mime_type: "image/jpeg", data: rawImageBase64 } },
+            { text: prompt }
+          ]}],
+          generationConfig: { responseModalities: ["IMAGE"] }
+        })
+      });
+
+      const data = await res.json();
+      const b64 = data.candidates[0].content.parts[0].inlineData.data;
+      const src = `data:image/jpeg;base64,${b64}`;
+
+      document.getElementById('mainStencil').src = src;
+      
+      if (!isUpdate) {
+        history.unshift({ id: Date.now(), src });
+        localStorage.setItem('stencil_history', JSON.stringify(history.slice(0, 20)));
+      }
+
+      showView('viewResult');
+    } catch (e) {
+      alert("Error: " + e.message);
+    } finally {
+      document.getElementById('loadingOverlay').style.display = 'none';
+    }
+  }
+
+  function renderGallery() {
+    const grid = document.getElementById('galleryGrid');
+    grid.innerHTML = history.length ? '' : '<p style="grid-column:1/-1; text-align:center; color:var(--muted); font-size:0.8rem;">No previous stencils found.</p>';
+    
+    history.forEach(item => {
+      const div = document.createElement('div');
+      div.className = 'stencil-thumb';
+      div.innerHTML = `<img src="${item.src}"><button class="del-btn" onclick="deleteItem(event, ${item.id})">✕</button>`;
+      div.onclick = () => {
+        document.getElementById('mainStencil').src = item.src;
+        showView('viewResult');
+      };
+      grid.appendChild(div);
+    });
+  }
+
+  function showView(id) {
+    document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+    document.getElementById(id).classList.add('active');
+    if (id === 'viewHome') renderGallery();
+  }
+
+  function goHome() {
+    rawImageBase64 = null;
+    showView('viewHome');
+  }
+
+  function deleteItem(e, id) {
+    e.stopPropagation();
+    history = history.filter(i => i.id !== id);
+    localStorage.setItem('stencil_history', JSON.stringify(history));
+    renderGallery();
+  }
+
+  function clearHistory() {
+    if (confirm("Clear your gallery history?")) {
+      history = [];
+      localStorage.removeItem('stencil_history');
+      renderGallery();
+    }
+  }
+
+  function downloadImage() {
+    const link = document.createElement('a');
+    link.href = document.getElementById('mainStencil').src;
+    link.download = `stencil-${Date.now()}.jpg`;
+    link.click();
+  }
+
+  async function copyToClipboard() {
+    try {
+      const response = await fetch(document.getElementById('mainStencil').src);
+      const blob = await response.blob();
+      await navigator.clipboard.write([new ClipboardItem({ [blob.type]: blob })]);
+      alert("Copied to clipboard!");
+    } catch (e) { alert("Copy failed."); }
+  }
+
+  // UI labels
+  document.getElementById('rangeDetail').oninput = e => document.getElementById('labelDetail').innerText = CONFIG.detail[e.target.value];
+  document.getElementById('rangeWeight').oninput = e => document.getElementById('labelWeight').innerText = CONFIG.weight[e.target.value];
+</script>
+
+</body>
+</html>
