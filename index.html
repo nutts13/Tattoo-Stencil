@@ -8,20 +8,20 @@
 <style>
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
   :root { --bg: #f8f7f4; --surface: #ffffff; --border: #e8e4de; --text: #1a1a1a; --muted: #a39e93; --accent: #000000; --radius: 12px; }
-  body { background: var(--bg); color: var(--text); font-family: 'Cormorant', serif; overflow-x: hidden; }
+  body { background: var(--bg); color: var(--text); font-family: 'Cormorant', serif; line-height: 1.6; }
   header { padding: 1.5rem; display: flex; justify-content: space-between; align-items: center; background: var(--surface); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 100; }
   .logo { font-size: 1.4rem; letter-spacing: 0.2em; text-transform: uppercase; }
-  .api-input { font-family: 'Geist Mono', monospace; font-size: 0.75rem; padding: 0.6rem 1rem; border: 1px solid var(--border); border-radius: 30px; width: 240px; outline: none; background: var(--bg); }
-  main { max-width: 1000px; margin: 0 auto; padding: 2rem 1.5rem; }
-  .view { display: none; animation: fadeIn 0.4s ease; }
-  .view.active { display: block; }
+  .api-input { font-family: 'Geist Mono', monospace; font-size: 0.75rem; padding: 0.6rem 1rem; border: 1px solid var(--border); border-radius: 30px; width: 220px; outline: none; background: var(--bg); }
+  main { max-width: 900px; margin: 0 auto; padding: 2rem 1.5rem; }
+  .view { display: none; }
+  .view.active { display: block; animation: fadeIn 0.4s ease; }
   @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-  .upload-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 3rem 2rem; text-align: center; cursor: pointer; position: relative; margin-bottom: 3rem; border: 2px dashed var(--border); }
+  .upload-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 4rem 2rem; text-align: center; cursor: pointer; position: relative; margin-bottom: 2rem; border: 2px dashed var(--border); }
   .upload-card input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
   .upload-text { font-family: 'Geist Mono', monospace; text-transform: uppercase; letter-spacing: 2px; font-size: 0.8rem; color: var(--muted); }
-  .canvas-area { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; display: flex; align-items: center; justify-content: center; min-height: 500px; margin-bottom: 2rem; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
-  #svgContainer svg { width: 100%; height: auto; max-height: 70vh; }
-  .action-bar { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; }
+  .canvas-area { background: #fff; border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; display: flex; align-items: center; justify-content: center; min-height: 450px; margin-bottom: 2rem; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
+  .canvas-area img { max-width: 100%; height: auto; display: block; }
+  .action-bar { display: grid; grid-template-columns: repeat(2, 1fr); gap: 1rem; }
   .btn { padding: 1.2rem; border-radius: var(--radius); border: 1px solid var(--border); background: var(--surface); font-family: 'Geist Mono', monospace; font-size: 0.7rem; text-transform: uppercase; cursor: pointer; transition: 0.2s; }
   .btn-primary { background: var(--accent); color: white; border: none; }
   .loading-overlay { position: fixed; inset: 0; background: rgba(248, 247, 244, 0.98); display: none; flex-direction: column; align-items: center; justify-content: center; z-index: 1000; text-align: center; }
@@ -33,7 +33,7 @@
 
 <header>
   <div class="logo">S<em>tencil</em></div>
-  <input type="password" id="apiKey" class="api-input" placeholder="Paste Gemini Key Here">
+  <input type="password" id="apiKey" class="api-input" placeholder="Enter Gemini API Key">
 </header>
 
 <main>
@@ -42,23 +42,25 @@
       <input type="file" id="fileInput" accept="image/*">
       <div class="upload-text">✦ Tap to Upload Portrait</div>
     </div>
-    <p style="text-align:center; color:var(--muted); font-size:0.8rem;">Upload a clear photo to generate a tattoo-ready line stencil.</p>
   </div>
 
   <div id="viewResult" class="view">
-    <div class="canvas-area" id="svgContainer">
-      </div>
+    <div class="canvas-area">
+      <img id="mainStencil" src="" alt="Stencil Result">
+    </div>
     <div class="action-bar">
-      <button class="btn btn-primary" onclick="window.print()">Print Stencil</button>
-      <button class="btn" onclick="showView('viewHome')">New Image</button>
-      <button class="btn" onclick="copySVG()">Copy SVG</button>
+      <button class="btn btn-primary" onclick="window.print()">Print</button>
+      <button class="btn btn-primary" onclick="downloadImage()">Save to Photos</button>
+      <button class="btn" onclick="showView('viewHome')">New Stencil</button>
+      <button class="btn" id="retryBtn" onclick="generateStencil()">Try Again</button>
     </div>
   </div>
 </main>
 
 <div id="loadingOverlay" class="loading-overlay">
   <div class="spinner"></div>
-  <p id="statusText" style="font-family:'Geist Mono'; font-size:0.75rem;">Tracing Lines...</p>
+  <p id="statusText" style="font-family:'Geist Mono'; font-size:0.75rem;">Generating Stencil...</p>
+  <button id="closeError" class="btn" style="display:none; margin-top:20px;" onclick="location.reload()">Reset App</button>
 </div>
 
 <script>
@@ -85,45 +87,49 @@
 
   async function generateStencil() {
     const key = document.getElementById('apiKey').value;
-    if (!key) return alert("Please paste your Gemini API Key in the top bar.");
+    if (!key) return alert("Please paste your Gemini API Key first.");
 
-    document.getElementById('loadingOverlay').style.display = 'flex';
-    
-    // This prompt forces the AI to output RAW SVG code which is free to generate.
-    const prompt = `Act as a master tattoo stencil maker. Analyze this portrait and output ONLY a raw <svg> element containing a clean, high-contrast black line-art version (stencil) of the face. 
-    - Use ONLY black paths (<path fill="none" stroke="black" stroke-width="1" />).
-    - Do not use gradients or shading.
-    - Focus on the key features: eyes, nose, lips, and main facial contours.
-    - Ensure the background is transparent.
-    - Output the raw code only, no conversational text.`;
+    const overlay = document.getElementById('loadingOverlay');
+    const status = document.getElementById('statusText');
+    overlay.style.display = 'flex';
+    status.innerText = "Processing Multimodal Request...";
+
+    // UPDATED FOR 2026: Using the specific image-capable model endpoint
+    const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-image:generateContent?key=${key}`;
+
+    const prompt = "Convert this portrait into a professional tattoo stencil. Use strictly black lines on a pure white background. No shading, no gray areas, high contrast only.";
 
     try {
-      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`, {
+      const res = await fetch(url, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          contents: [{ parts: [
-            { inline_data: { mime_type: "image/jpeg", data: base64Image } },
-            { text: prompt }
-          ]}]
+          contents: [{
+            parts: [
+              { inline_data: { mime_type: "image/jpeg", data: base64Image } },
+              { text: prompt }
+            ]
+          }],
+          generationConfig: {
+            // Removing explicit "IMAGE" modality to allow the model to default to its native output
+            responseMimeType: "image/jpeg"
+          }
         })
       });
 
       const data = await res.json();
-      const rawOutput = data.candidates[0].content.parts[0].text;
+
+      if (data.error) throw new Error(data.error.message);
       
-      // Clean the output to get just the SVG
-      const svgMatch = rawOutput.match(/<svg[\s\S]*?<\/svg>/);
-      if (svgMatch) {
-        document.getElementById('svgContainer').innerHTML = svgMatch[0];
-        showView('viewResult');
-      } else {
-        throw new Error("AI could not trace this image. Try a photo with better lighting.");
-      }
+      // Checking for the image in the specific 2.5-flash-image response format
+      const b64 = data.candidates[0].content.parts[0].inlineData.data;
+      document.getElementById('mainStencil').src = `data:image/jpeg;base64,${b64}`;
+      
+      overlay.style.display = 'none';
+      showView('viewResult');
     } catch (e) {
-      alert("Error: " + e.message);
-    } finally {
-      document.getElementById('loadingOverlay').style.display = 'none';
+      status.innerHTML = `<span style="color:red">ERROR</span><br><br>${e.message}`;
+      document.getElementById('closeError').style.display = 'block';
     }
   }
 
@@ -132,10 +138,11 @@
     document.getElementById(id).classList.add('active');
   }
 
-  async function copySVG() {
-    const svg = document.getElementById('svgContainer').innerHTML;
-    await navigator.clipboard.writeText(svg);
-    alert("SVG Code Copied!");
+  function downloadImage() {
+    const link = document.createElement('a');
+    link.href = document.getElementById('mainStencil').src;
+    link.download = `stencil-${Date.now()}.jpg`;
+    link.click();
   }
 </script>
 </body>
