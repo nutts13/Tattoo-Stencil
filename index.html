@@ -3,19 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Stencil Studio Pro</title>
+<title>Stencil Studio Pro | Master Protocol</title>
 <style>
   body { margin:0; background:#000; color:#fff; font-family:-apple-system, sans-serif; height:100vh; display:flex; flex-direction:column; overflow:hidden; }
   header { padding:20px; border-bottom:1px solid #222; display:flex; justify-content:space-between; align-items:center; }
   input[type="password"] { background:#111; border:1px solid #333; color:#fff; padding:10px; border-radius:10px; width:220px; font-size:12px; }
   main { flex:1; display:flex; align-items:center; justify-content:center; padding:20px; position:relative; }
   .drop { background:#111; border:2px dashed #444; padding:60px 20px; text-align:center; border-radius:20px; cursor:pointer; width:100%; max-width:400px; font-weight:bold; }
-  #stencilResult { max-width:100%; max-height:100%; border-radius:10px; display:none; background:#fff; box-shadow: 0 0 30px rgba(255,255,255,0.1); }
+  #stencilResult { max-width:100%; max-height:100%; border-radius:10px; display:none; background:#fff; }
   .footer { background:#111; padding:20px; border-top:1px solid #222; display:none; flex-direction:column; gap:10px; }
   .btn-row { display:flex; gap:10px; }
-  button { flex:1; padding:18px; border:none; border-radius:12px; font-weight:bold; cursor:pointer; font-size: 14px; transition: 0.2s; }
+  button { flex:1; padding:18px; border:none; border-radius:12px; font-weight:bold; cursor:pointer; font-size: 14px; }
   .white { background:#fff; color:#000; }
-  .white:active { background:#ccc; }
   .dark { background:#333; color:#fff; }
   .loader { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.9); justify-content:center; align-items:center; z-index:100; flex-direction:column; }
   .spin { width:40px; height:40px; border:4px solid #333; border-top:4px solid #fff; border-radius:50%; animation:s 0.8s linear infinite; }
@@ -25,25 +24,19 @@
 <body>
 
 <header>
-  <div style="font-weight:900; letter-spacing:1px;">MASTER PROTOCOL V17</div>
+  <div style="font-weight:900; letter-spacing:1px;">MASTER PROTOCOL V18</div>
   <input type="password" id="key" placeholder="Paste API Key (AIza...)">
 </header>
 
 <main>
-  <div class="loader" id="load"><div class="spin"></div><p style="margin-top:20px; font-weight:bold; letter-spacing:1px;">GENERATING BLUEPRINT...</p></div>
+  <div class="loader" id="load"><div class="spin"></div><p style="margin-top:20px; font-weight:bold;">EXECUTING MASTER PROTOCOL...</p></div>
   <div class="drop" id="drop" onclick="f.click()">✦ UPLOAD REFERENCE<input type="file" id="f" hidden accept="image/*"></div>
   <img id="stencilResult" src="">
 </main>
 
 <div class="footer" id="foot">
-  <div class="btn-row">
-    <button class="white" onclick="save()">SAVE PNG</button>
-    <button class="white" onclick="copy()">COPY TO CLIPBOARD</button>
-  </div>
-  <div class="btn-row">
-    <button class="dark" onclick="window.print()">PRINT STENCIL</button>
-    <button class="dark" onclick="location.reload()">NEW IMAGE</button>
-  </div>
+  <div class="btn-row"><button class="white" onclick="save()">SAVE PNG</button><button class="white" onclick="copy()">COPY</button></div>
+  <div class="btn-row"><button class="dark" onclick="window.print()">PRINT</button><button class="dark" onclick="location.reload()">NEW IMAGE</button></div>
 </div>
 
 <script>
@@ -52,8 +45,8 @@ const res = document.getElementById("stencilResult");
 const f = document.getElementById("f");
 const load = document.getElementById("load");
 
-if (localStorage.mpKeyV17) key.value = localStorage.mpKeyV17;
-key.oninput = () => localStorage.mpKeyV17 = key.value;
+if (localStorage.mpKeyV18) key.value = localStorage.mpKeyV18;
+key.oninput = () => localStorage.mpKeyV18 = key.value;
 
 f.onchange = e => {
   const file = e.target.files[0];
@@ -65,39 +58,33 @@ f.onchange = e => {
 
 async function runProtocol(b64) {
   load.style.display = "flex";
-  
-  // 2026 OFFICIAL STABLE ENDPOINT: Nano Banana 2 (Gemini 3.1 Flash Image)
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${key.value}`;
+  // Using 1.5 Pro - It has the best support for Code Execution logic on Free Keys
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key=${key.value}`;
 
   const body = {
     contents:[{
       parts:[
         { inlineData: { mimeType: "image/jpeg", data: b64 } },
-        { text: "MASTER PROTOCOL: You are a technical tattoo stencil artist. Recreate this image as a high-contrast realism blueprint. 1. Solid black outlines strictly for anatomical borders. 2. Tonal depth captured exclusively through dotted topographical mapping (dot density = shadow depth). 3. Single-direction hatching for darker recesses. 4. High-contrast black ink on a pure white background. NO SHADING, ONLY DOTS AND LINES. Output: RETURN AS IMAGE MODALITY." }
+        { text: "MASTER PROTOCOL: You are a technical realism artist. Do not use standard filters. Use Python to analyze the contours of this image and generate a Base64 PNG. 1. SOLID: Trace anatomical borders. 2. TOPOGRAPHIC: Map shadow volume using specific dot density. 3. HATCH: Dark recesses only. Return ONLY the final Base64 image string." }
       ]
     }],
-    generationConfig: {
-      responseModalities: ["IMAGE"]
-    }
+    tools: [{ code_execution: {} }]
   };
 
   try {
     const response = await fetch(url, { method: "POST", body: JSON.stringify(body) });
     const data = await response.json();
     
-    // Check for the image data in the 2026 standard response format
-    const imgPart = data.candidates[0].content.parts.find(p => p.inlineData);
+    // Extract the Base64 from the execution results
+    const textResult = data.candidates[0].content.parts.find(p => p.text).text;
+    const cleanB64 = textResult.match(/[A-Za-z0-9+/=]{100,}/g)[0];
 
-    if (imgPart) {
-      res.src = `data:image/png;base64,${imgPart.inlineData.data}`;
-      res.style.display = "block";
-      document.getElementById("drop").style.display = "none";
-      document.getElementById("foot").style.display = "flex";
-    } else {
-      throw new Error("API Refused Image Output.");
-    }
+    res.src = `data:image/png;base64,${cleanB64}`;
+    res.style.display = "block";
+    document.getElementById("drop").style.display = "none";
+    document.getElementById("foot").style.display = "flex";
   } catch (err) {
-    alert("FAIL: Ensure your key is from AI Studio and you have 'Gemini 3.1 Flash Image' enabled.");
+    alert("API Error: The Master Protocol requires a fresh API Key from Google AI Studio.");
   } finally {
     load.style.display = "none";
   }
