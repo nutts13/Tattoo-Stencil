@@ -5,120 +5,107 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Stencil Studio Pro</title>
 <style>
-  body { margin:0; background:#000; color:#fff; font-family:-apple-system, sans-serif; height:100vh; display:flex; flex-direction:column; }
-  header { padding:20px; display:flex; justify-content:space-between; border-bottom:1px solid #222; align-items:center; }
-  input[type="password"] { background:#111; border:1px solid #333; color:#fff; padding:8px; border-radius:10px; width:180px; font-size:11px; }
-  main { flex:1; display:flex; align-items:center; justify-content:center; padding:20px; position:relative; overflow:hidden; }
+  body { margin:0; background:#000; color:#fff; font-family:-apple-system, sans-serif; height:100vh; display:flex; flex-direction:column; overflow:hidden; }
+  header { padding:20px; border-bottom:1px solid #222; display:flex; justify-content:space-between; align-items:center; }
+  input[type="password"] { background:#111; border:1px solid #333; color:#fff; padding:10px; border-radius:10px; width:220px; font-size:12px; }
+  main { flex:1; display:flex; align-items:center; justify-content:center; padding:20px; position:relative; }
   .drop { background:#111; border:2px dashed #444; padding:60px 20px; text-align:center; border-radius:20px; cursor:pointer; width:100%; max-width:400px; font-weight:bold; }
-  #canvas { max-width:100%; max-height:100%; border-radius:10px; display:none; background:#fff; }
-  .footer { background:#111; padding:20px; border-top:1px solid #222; display:none; flex-direction:column; gap:12px; }
+  #stencilResult { max-width:100%; max-height:100%; border-radius:10px; display:none; background:#fff; box-shadow: 0 0 30px rgba(255,255,255,0.1); }
+  .footer { background:#111; padding:20px; border-top:1px solid #222; display:none; flex-direction:column; gap:10px; }
   .btn-row { display:flex; gap:10px; }
-  button { flex:1; padding:16px; border:none; border-radius:12px; font-weight:bold; cursor:pointer; }
+  button { flex:1; padding:18px; border:none; border-radius:12px; font-weight:bold; cursor:pointer; font-size: 14px; transition: 0.2s; }
   .white { background:#fff; color:#000; }
+  .white:active { background:#ccc; }
   .dark { background:#333; color:#fff; }
-  input[type="range"] { width: 100%; accent-color: #fff; }
-  .loader { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.95); justify-content:center; align-items:center; z-index:100; flex-direction:column; }
-  .spin { width:30px; height:30px; border:3px solid #333; border-top:3px solid #fff; border-radius:50%; animation:s 0.8s linear infinite; }
+  .loader { display:none; position:fixed; inset:0; background:rgba(0,0,0,0.9); justify-content:center; align-items:center; z-index:100; flex-direction:column; }
+  .spin { width:40px; height:40px; border:4px solid #333; border-top:4px solid #fff; border-radius:50%; animation:s 0.8s linear infinite; }
   @keyframes s { to { transform:rotate(360deg); } }
 </style>
 </head>
 <body>
 
 <header>
-  <div style="font-weight:900; letter-spacing:1px; font-size:14px;">MASTER PROTOCOL V15</div>
-  <input type="password" id="key" placeholder="API Key (AIza...)">
+  <div style="font-weight:900; letter-spacing:1px;">MASTER PROTOCOL V17</div>
+  <input type="password" id="key" placeholder="Paste API Key (AIza...)">
 </header>
 
 <main>
-  <div class="loader" id="load"><div class="spin"></div><p style="margin-top:15px; font-weight:bold;">BLUEPRINTING...</p></div>
+  <div class="loader" id="load"><div class="spin"></div><p style="margin-top:20px; font-weight:bold; letter-spacing:1px;">GENERATING BLUEPRINT...</p></div>
   <div class="drop" id="drop" onclick="f.click()">✦ UPLOAD REFERENCE<input type="file" id="f" hidden accept="image/*"></div>
-  <canvas id="canvas"></canvas>
+  <img id="stencilResult" src="">
 </main>
 
 <div class="footer" id="foot">
-  <div style="font-size: 11px; color: #888;">DETAIL SLIDER (ADJUST STENCIL DEPTH)</div>
-  <input type="range" id="detail" min="10" max="150" value="80">
   <div class="btn-row">
     <button class="white" onclick="save()">SAVE PNG</button>
-    <button class="white" onclick="copy()">COPY</button>
+    <button class="white" onclick="copy()">COPY TO CLIPBOARD</button>
   </div>
   <div class="btn-row">
-    <button class="dark" onclick="window.print()">PRINT</button>
-    <button class="dark" onclick="location.reload()">NEW</button>
+    <button class="dark" onclick="window.print()">PRINT STENCIL</button>
+    <button class="dark" onclick="location.reload()">NEW IMAGE</button>
   </div>
 </div>
 
 <script>
 const key = document.getElementById("key");
-const canvas = document.getElementById("canvas");
-const ctx = canvas.getContext("2d");
+const res = document.getElementById("stencilResult");
 const f = document.getElementById("f");
-const detail = document.getElementById("detail");
+const load = document.getElementById("load");
 
-let originalImg = null;
-
-if (localStorage.mpKeyV15) key.value = localStorage.mpKeyV15;
-key.oninput = () => localStorage.mpKeyV15 = key.value;
-
-detail.oninput = () => { if(originalImg) drawStencil(); };
+if (localStorage.mpKeyV17) key.value = localStorage.mpKeyV17;
+key.oninput = () => localStorage.mpKeyV17 = key.value;
 
 f.onchange = e => {
   const file = e.target.files[0];
-  if (!file || !key.value) return alert("Add key and image.");
+  if (!file || !key.value) return alert("API Key + Image Required");
   const r = new FileReader();
   r.readAsDataURL(file);
-  r.onload = () => {
-    originalImg = new Image();
-    originalImg.src = r.result;
-    originalImg.onload = () => {
-      document.getElementById("drop").style.display = "none";
-      canvas.style.display = "block";
-      document.getElementById("foot").style.display = "flex";
-      drawStencil();
-    };
-  };
+  r.onload = async () => { await runProtocol(r.result.split(",")[1]); };
 };
 
-function drawStencil() {
-  // MASTER PROTOCOL: Local Processor
-  const w = originalImg.width;
-  const h = originalImg.height;
-  canvas.width = w;
-  canvas.height = h;
-
-  ctx.drawImage(originalImg, 0, 0);
+async function runProtocol(b64) {
+  load.style.display = "flex";
   
-  // STEP 1: Gray-scale and High-Contrast Outline
-  let imageData = ctx.getImageData(0, 0, w, h);
-  let data = imageData.data;
-  let threshold = parseInt(detail.value);
+  // 2026 OFFICIAL STABLE ENDPOINT: Nano Banana 2 (Gemini 3.1 Flash Image)
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${key.value}`;
 
-  for (let i = 0; i < data.length; i += 4) {
-    let avg = (data[i] + data[i+1] + data[i+2]) / 3;
-    
-    // The "Master Protocol" Logic: 
-    // Solid anatomy lines (Black) vs Dotted Topographic Shadows (White/Gray)
-    if (avg < threshold) {
-      data[i] = data[i+1] = data[i+2] = 0; // Black Line
-    } else if (avg < threshold + 40) {
-      // Create Dotted/Topographic Effect (Digital Screen)
-      let x = (i / 4) % w;
-      let y = Math.floor((i / 4) / w);
-      if ((x % 3 === 0) && (y % 3 === 0)) {
-        data[i] = data[i+1] = data[i+2] = 0; // The "Dot"
-      } else {
-        data[i] = data[i+1] = data[i+2] = 255;
-      }
-    } else {
-      data[i] = data[i+1] = data[i+2] = 255; // Paper White
+  const body = {
+    contents:[{
+      parts:[
+        { inlineData: { mimeType: "image/jpeg", data: b64 } },
+        { text: "MASTER PROTOCOL: You are a technical tattoo stencil artist. Recreate this image as a high-contrast realism blueprint. 1. Solid black outlines strictly for anatomical borders. 2. Tonal depth captured exclusively through dotted topographical mapping (dot density = shadow depth). 3. Single-direction hatching for darker recesses. 4. High-contrast black ink on a pure white background. NO SHADING, ONLY DOTS AND LINES. Output: RETURN AS IMAGE MODALITY." }
+      ]
+    }],
+    generationConfig: {
+      responseModalities: ["IMAGE"]
     }
+  };
+
+  try {
+    const response = await fetch(url, { method: "POST", body: JSON.stringify(body) });
+    const data = await response.json();
+    
+    // Check for the image data in the 2026 standard response format
+    const imgPart = data.candidates[0].content.parts.find(p => p.inlineData);
+
+    if (imgPart) {
+      res.src = `data:image/png;base64,${imgPart.inlineData.data}`;
+      res.style.display = "block";
+      document.getElementById("drop").style.display = "none";
+      document.getElementById("foot").style.display = "flex";
+    } else {
+      throw new Error("API Refused Image Output.");
+    }
+  } catch (err) {
+    alert("FAIL: Ensure your key is from AI Studio and you have 'Gemini 3.1 Flash Image' enabled.");
+  } finally {
+    load.style.display = "none";
   }
-  ctx.putImageData(imageData, 0, 0);
 }
 
-function save() { const a = document.createElement("a"); a.download = "stencil.png"; a.href = canvas.toDataURL(); a.click(); }
+function save() { const a = document.createElement("a"); a.download = "stencil.png"; a.href = res.src; a.click(); }
 async function copy() { 
-  const b = await new Promise(res => canvas.toBlob(res));
+  const b = await (await fetch(res.src)).blob();
   try { await navigator.clipboard.write([new ClipboardItem({"image/png":b})]); alert("Copied!"); } catch { save(); }
 }
 </script>
